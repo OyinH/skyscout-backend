@@ -1,0 +1,124 @@
+// prisma/schema.prisma
+generator client {
+  provider = "prisma-client-js"
+}
+
+datasource db {
+  provider = "postgresql"
+  url      = env("DATABASE_URL")
+}
+
+model User {
+  id        String   @id @default(uuid())
+  email     String   @unique
+  password  String
+  name      String?
+  phone     String?
+  createdAt DateTime @default(now())
+  updatedAt DateTime @updatedAt
+
+  alerts        Alert[]
+  notifications Notification[]
+
+  @@map("users")
+}
+
+model Alert {
+  id          String      @id @default(uuid())
+  userId      String
+  user        User        @relation(fields: [userId], references: [id], onDelete: Cascade)
+
+  // Route
+  origin      String      // "New York (JFK)"
+  dest        String      // "London (LHR)"
+  originCode  String      // "JFK"
+  destCode    String      // "LHR"
+
+  // Travel details
+  departDate  DateTime
+  returnDate  DateTime?
+  cabin       CabinClass  @default(ECONOMY)
+  passengers  Int         @default(1)
+
+  // Alert settings
+  maxBudget   Float
+  targetDrop  Int         @default(10)  // percent
+  checkFreq   Int         @default(6)   // hours between checks
+
+  // Notification channels (stored as comma-separated string)
+  channels    String      @default("email")
+
+  // State
+  status      AlertStatus @default(WATCHING)
+  currentPrice Float?
+  basePrice    Float?      // price when alert was first created
+  lowestSeen   Float?
+  lastChecked  DateTime?
+
+  createdAt   DateTime    @default(now())
+  updatedAt   DateTime    @updatedAt
+
+  priceHistory PricePoint[]
+  notifications Notification[]
+
+  @@map("alerts")
+}
+
+model PricePoint {
+  id        String   @id @default(uuid())
+  alertId   String
+  alert     Alert    @relation(fields: [alertId], references: [id], onDelete: Cascade)
+
+  price     Float
+  airline   String?
+  source    String?  // "google_flights", "skyscanner", etc.
+  dealScore Int?     // 0–100
+  metadata  Json?    // full deal details from AI agent
+
+  checkedAt DateTime @default(now())
+
+  @@index([alertId, checkedAt])
+  @@map("price_points")
+}
+
+model Notification {
+  id        String           @id @default(uuid())
+  userId    String
+  user      User             @relation(fields: [userId], references: [id], onDelete: Cascade)
+  alertId   String?
+  alert     Alert?           @relation(fields: [alertId], references: [id], onDelete: SetNull)
+
+  type      NotificationType
+  title     String
+  message   String
+  data      Json?            // deal details, booking links, etc.
+  read      Boolean          @default(false)
+  sentVia   String[]         // ["email", "sms", "browser"]
+
+  createdAt DateTime @default(now())
+
+  @@index([userId, read])
+  @@map("notifications")
+}
+
+enum CabinClass {
+  ECONOMY
+  PREMIUM_ECONOMY
+  BUSINESS
+  FIRST
+}
+
+enum AlertStatus {
+  WATCHING
+  DEAL_FOUND
+  PAUSED
+  EXPIRED
+}
+
+enum NotificationType {
+  DEAL_FOUND
+  PRICE_DROP
+  PRICE_RISE
+  ALERT_CREATED
+  SYSTEM
+}
