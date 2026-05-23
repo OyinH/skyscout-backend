@@ -19,6 +19,7 @@ import notifRoutes         from './routes/notifications.js';
 // ─── APP SETUP ───────────────────────────────────────────────────────────────
 
 const app = express();
+app.set('trust proxy', 1);
 const httpServer = createServer(app);
 
 // Socket.IO for real-time browser notifications
